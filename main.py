@@ -1,80 +1,102 @@
-# Step 1: Ask if user has a project
-def get_project():
-    print("Do you have a project? (yes/no)")
-    response = input().lower()
-    if response == "yes":
-        # Project list could come from a database
-        print("Select your project: [Project A, Project B]")
-        selected_project = input("Enter project name: ")
-        return selected_project
+from typing import TypedDict, Optional, Literal
+from datetime import date
+from langgraph.graph import END, StateGraph
+
+# State definition (same as before)
+class State(TypedDict):
+    has_project: Optional[bool]
+    selected_product: Optional[str]
+    new_price: Optional[float]
+    rollout_date: Optional[date]
+    current_flow: Optional[Literal["modify_price", "create_version"]]
+
+# Nodes (same as before)
+def ask_project_status(state: State):
+    has_project = input("Do you have a project? (yes/no): ").lower().strip() == "yes"
+    return {"has_project": has_project}
+
+def select_product(state: State):
+    products = ["Product A", "Product B", "Product C"]
+    print(f"Available products: {products}")
+    selected = input("Select a product: ").strip()
+    return {"selected_product": selected}
+
+def modify_price(state: State):
+    while True:
+        price_input = input("Enter new price (numbers only): ").strip()
+        # Remove any non-numeric characters except decimal point
+        clean_price = ''.join(c for c in price_input if c.isdigit() or c == '.')
+        try:
+            new_price = float(clean_price)
+            return {"new_price": new_price}
+        except ValueError:
+            print("Invalid price! Please enter numbers only (e.g., 30 or 29.99)")
+
+def get_rollout_date(state: State):
+    while True:
+        rollout_date = input("Enter rollout date (YYYY-MM-DD): ")
+        try:
+            return {"rollout_date": date.fromisoformat(rollout_date)}
+        except ValueError:
+            print("Invalid date format! Please use YYYY-MM-DD.")
+
+# Conditional routing (thoda sa modify kiya)
+def route_flows(state: State):
+    if state["current_flow"] == "modify_price":
+        return "ask_project"  # Pehle project poocho
+    elif state["current_flow"] == "create_version":
+        return "ask_project"  # Pehle project poocho
     else:
-        print("Continuing without project...")
-        return None
+        return END
 
-# Step 2: Select a product
-def select_product():
-    print("Select a product to modify: [Product X, Product Y, Product Z]")
-    product = input("Enter product name: ")
-    return product
-
-# Step 3: Modify product price
-def modify_price(product):
-    print(f"Which price of '{product}' would you like to modify? (e.g., retail, wholesale)")
-    price_type = input("Price type: ").lower()
-    
-    raw_input = input(f"Enter new {price_type} price (e.g., 10 or $10): ")
-    cleaned_price = raw_input.replace("$", "").strip()  # Removes dollar sign
-    new_price = float(cleaned_price)
-    
-    # In actual implementation, here we would update in DB
-    print(f"{price_type.capitalize()} price of {product} updated to ${new_price}")
-
-# MAIN FLOW FOR MODIFY PRICE
-def modify_price_flow():
-    project = get_project()
-    product = select_product()
-    modify_price(product)
-
-# Step 1: Ask for project (reuse)
-#Already defined: get_project()
-
-# Step 2: Select a product (reuse)
-# Already defined: select_product()
-
-# Step 3: Get rollout date
-def get_rollout_date():
-    print("Enter the rollout (launch) date for the new version (YYYY-MM-DD):")
-    date = input("Date: ")
-    return date
-
-# Step 4: Create new product version
-def create_new_version(product, rollout_date):
-    # In real application: clone product data, apply changes
-    print(f"Creating new version of {product}...")
-    print(f"New version scheduled for rollout on {rollout_date}")
-    # Save to DB (simulated)
-    print("New version created successfully.")
-
-# MAIN FLOW FOR NEW PRODUCT VERSION
-def create_new_product_version_flow():
-    project = get_project()
-    product = select_product()
-    rollout_date = get_rollout_date()
-    create_new_version(product, rollout_date)
-
-# Main Menu to choose the flow
-def main():
-    print("Choose an option:")
-    print("1. Modify Product Price")
-    print("2. Create New Product Version")
-    choice = input("Enter choice (1/2): ")
-
-    if choice == "1":
-        modify_price_flow()
-    elif choice == "2":
-        create_new_product_version_flow()
+def check_project_skip(state: State):
+    if state["has_project"]:
+        return "select_product"  # Agar project hai toh product select karo
     else:
-        print("Invalid choice.")
+        return "select_product"  # Warna bina project ke hi select karo
 
-# Call main function to start
-main()
+# Graph setup (Yeh woh part hai jo fix karna hai)
+workflow = StateGraph(State)
+
+# Sab nodes add karo
+workflow.add_node("ask_project", ask_project_status)
+workflow.add_node("select_product", select_product)
+workflow.add_node("modify_price", modify_price)
+workflow.add_node("get_rollout_date", get_rollout_date)
+
+# Entry point set karo (Yeh zaroori hai!)
+workflow.set_entry_point("ask_project")
+
+# Conditional edges add karo
+workflow.add_conditional_edges(
+    "ask_project",
+    check_project_skip,
+    {"select_product": "select_product"}
+)
+
+workflow.add_conditional_edges(
+    "select_product",
+    lambda state: "modify_price" if state["current_flow"] == "modify_price" else "get_rollout_date",
+    {
+        "modify_price": "modify_price",
+        "get_rollout_date": "get_rollout_date"
+    }
+)
+
+# Final edges
+workflow.add_edge("modify_price", END)  # Bas itna kaafi hai
+workflow.add_edge("get_rollout_date", END)  # Yahan bhi khatam
+
+# Graph compile karo
+app = workflow.compile()
+
+# Chalane ka tarika (Thoda sa change kiya)
+print("\n=== Modify Price Flow ===")
+inputs = {"current_flow": "modify_price"}
+result = app.invoke(inputs)
+print(f"Updated price: {result['selected_product']} -> ${result['new_price']}")
+
+print("\n=== Create Version Flow ===")
+inputs = {"current_flow": "create_version"}
+result = app.invoke(inputs)
+print(f"New version: {result['selected_product']} for {result['rollout_date']}")
