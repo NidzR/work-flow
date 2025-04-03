@@ -62,14 +62,19 @@ def create_new_product_version_flow():
     rollout_date = get_rollout_date()
     create_new_version(product, rollout_date)
 
-print("Choose an option:")
-print("1. Modify Product Price")
-print("2. Create New Product Version")
-choice = input("Enter choice (1/2): ")
+# Main Menu to choose the flow
+def main():
+    print("Choose an option:")
+    print("1. Modify Product Price")
+    print("2. Create New Product Version")
+    choice = input("Enter choice (1/2): ")
 
-if choice == "1":
-    modify_price_flow()
-elif choice == "2":
-    create_new_product_version_flow()
-else:
-    print("Invalid choice.")
+    if choice == "1":
+        modify_price_flow()
+    elif choice == "2":
+        create_new_product_version_flow()
+    else:
+        print("Invalid choice.")
+
+# Call main function to start
+main()
