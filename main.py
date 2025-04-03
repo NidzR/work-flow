@@ -100,3 +100,4 @@ print("\n=== Create Version Flow ===")
 inputs = {"current_flow": "create_version"}
 result = app.invoke(inputs)
 print(f"New version: {result['selected_product']} for {result['rollout_date']}")
+# print(f"Updated price: {result['selected_product']} -> ${result['new_price']:.2f}")
